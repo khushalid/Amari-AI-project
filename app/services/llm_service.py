@@ -1,24 +1,43 @@
-from openai import OpenAI
+from openai import OpenAI  
 from app.core.config import settings
+import json
 
-client = OpenAI(api_key="")
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-
-def extract_field_from_document(document_text):
+def extract_fields_from_document(document_text, return_fields):
     """
-    Use LLM to extract specific field from document text.
+    Extracts specified fields from document text using OpenAI's JSON schema mode.
     
     Args:
-        document_text: Text from the document
+        document_text: Text content of the document
+        return_fields: List of field names to extract (e.g., ["lease_term", "rent_amount"])
         
     Returns:
-        str: Extracted field value
+        dict: Extracted fields and their values
     """
-
-    prompt = f"Extract the data from the following documents:\n\n{document_text}"
-
-    response = client.completions.create(model="text-davinci-003",
-                                         prompt=prompt,
-                                         max_tokens=100,
-                                         temperature=1)
-    return response.choices[0].text.strip()
+    print("text", document_text)
+    response = client.chat.completions.create(
+        model="gpt-4o-2024-08-06",
+        messages=[
+            {
+                "role": "system",
+                "content": "Extract specified fields from lease agreements. Return only the requested data in JSON format."
+            },
+            {
+                "role": "user", 
+                "content": f"Extract these fields: {', '.join(return_fields)} from:\n{document_text}"
+            }
+        ],
+        response_format={
+            "type": "json_schema",
+            "schema": {
+                "type": "object",
+                "properties": {field: {"type": "string"} for field in return_fields},
+                "required": return_fields,
+                "additionalProperties": False
+            }
+        },
+        temperature=0  # For consistent output
+    )
+    
+    return json.loads(response.choices[0].message.content)
